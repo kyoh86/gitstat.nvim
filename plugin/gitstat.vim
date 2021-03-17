@@ -6,6 +6,7 @@ command! GitStatUpdate lua require('gitstat').update()
 
 augroup GitStat
   autocmd!
+  autocmd DirChanged * lua require('gitstat').update()
   autocmd BufWritePost * lua require('gitstat').update()
   autocmd TermEnter * lua require('gitstat').start_sync()
   autocmd TermLeave * lua require('gitstat').stop_sync()

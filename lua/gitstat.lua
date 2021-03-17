@@ -120,13 +120,25 @@ local function update()
   end
   local profile = get_git_stat_profile()
   vim.api.nvim_buf_set_lines(b, 0, 1, true, {profile.stat})
-  vim.api.nvim_win_set_config(w, {
-    relative = 'editor',
-    row = profile.row,
-    col = profile.col,
-    width = profile.width,
-    height = profile.height,
-  })
+  if profile.stat == '' or profile.width == 0 then
+    vim.api.nvim_win_set_option(w, 'winblend', 100)
+    vim.api.nvim_win_set_config(w, {
+      relative = 'editor',
+      row = profile.row,
+      col = profile.col,
+      width = 1,
+      height = profile.height,
+    })
+  else
+    vim.api.nvim_win_set_option(w, 'winblend', 40)
+    vim.api.nvim_win_set_config(w, {
+      relative = 'editor',
+      row = profile.row,
+      col = profile.col,
+      width = profile.width,
+      height = profile.height,
+    })
+  end
 end
 
 local function show()
@@ -147,7 +159,6 @@ local function show()
       style = 'minimal',
     })
     vim.api.nvim_win_set_option(w, 'winhighlight', 'Normal:GitStatWindow,NormalNC:GitStatWindow')
-    vim.api.nvim_win_set_option(w, 'winblend', 40)
     global.put_window(w)
   end
   vim.api.nvim_win_set_buf(w, b)
