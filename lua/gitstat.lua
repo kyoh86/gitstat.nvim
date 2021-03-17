@@ -160,7 +160,6 @@ end
 
 local delay = 3000
 local function sync()
-  print('sync')
   update()
   if global.get_sync() then
     vim.defer_fn(vim.schedule_wrap(sync), delay)
