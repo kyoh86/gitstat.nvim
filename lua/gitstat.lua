@@ -80,13 +80,14 @@ local get_git_stat_string = function ()
   local output = vim.fn.trim(vim.fn.join(vim.tbl_filter(function(w)
     return w ~= nil and w ~= ''
   end, {
-    withPrefix("\u{FF55D}", stat.ahead),     -- 󿕝 .
-    withPrefix("\u{FF545}", stat.behind),    -- 󿕅 .
+    withPrefix("\u{E0A0} ", stat.local_branch), --  .
+    withPrefix("\u{FF55D}", stat.ahead),        -- 󿕝 .
+    withPrefix("\u{FF545}", stat.behind),       -- 󿕅 .
     stat.sync,
-    withPrefix('\u{FFBC2}', stat.unmerged),  -- 󿯂 .
-    withPrefix("\u{FF62B}", stat.staged),    -- 󿘫 .
-    withPrefix("\u{FF914}", stat.unstaged),  -- 󿤔 .
-    withPrefix("\u{FF7D5}", stat.untracked), -- 󿟕 .
+    withPrefix('\u{FFBC2}', stat.unmerged),     -- 󿯂 .
+    withPrefix("\u{FF62B}", stat.staged),       -- 󿘫 .
+    withPrefix("\u{FF914}", stat.unstaged),     -- 󿤔 .
+    withPrefix("\u{FF7D5}", stat.untracked),    -- 󿟕 .
   })))
   if output == '' then
     return output
