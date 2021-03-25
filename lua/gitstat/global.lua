@@ -1,5 +1,13 @@
 local M = {}
 
+M.get_namespace = function()
+  return vim.g['gitstat#_namespace']
+end
+
+M.put_namespace = function(n)
+  vim.g['gitstat#_namespace'] = n
+end
+
 M.get_window = function()
   return vim.g['gitstat#_window']
 end

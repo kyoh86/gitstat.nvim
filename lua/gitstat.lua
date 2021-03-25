@@ -1,6 +1,15 @@
 local global = require('gitstat.global')
+local option = require('gitstat.option')
+
+local function init()
+  local ns = global.get_namespace()
+  if ns == nil then
+    global.put_namespace(vim.api.nvim_create_namespace('gitstat'))
+  end
+end
 
 local function hide()
+  init()
   local w = global.get_window()
   if w then
     pcall(vim.api.nvim_win_close, w, true)
@@ -8,17 +17,17 @@ local function hide()
   end
   local b = global.get_buffer()
   if b then
-    pcall(vim.api.nvim_buf_delete, b)
+    pcall(vim.api.nvim_buf_delete, b, {force = true})
     global.del_buffer()
   end
 end
 
 function get_git_stat(path)
   local res = vim.fn.system("git -C '" .. path .. "' status --porcelain --branch --ahead-behind --untracked-files --renames")
+  local info = { ahead = 0, behind = 0, sync = false, unmerged = 0, untracked = 0, staged = 0, unstaged = 0 }
   if string.sub(res, 1, 7) == 'fatal: ' then
-    return nil
+    return info
   end
-  local info = { ahead = 0, behind = 0, sync = '', unmerged = 0, untracked = 0, staged = 0, unstaged = 0 }
   local file
   for _, file in next, vim.fn.split(res, "\n") do
     local staged = string.sub(file, 1, 1)
@@ -28,11 +37,11 @@ function get_git_stat(path)
       -- ブランチ名を取得する
       local words = vim.fn.split(file, '\\.\\.\\.\\|[ \\[\\],]')
       if #words == 2 then
-        info.local_branch = words[2] .. '?'
-        info.sync = "\u{F12A}"
+        info.branch = words[2] .. '?'
+        info.sync = true -- "\u{F12A}"
       else
-        info.local_branch = words[2]
-        info.remote_branch = words[3]
+        info.branch = words[2]
+        info.remote = words[3]
         if #words > 3 then
           local key = ''
           local i = ''
@@ -65,44 +74,46 @@ function get_git_stat(path)
   return info
 end
 
-local get_git_stat_string = function ()
+local function get_git_stat_profile()
   local location = vim.fn.getcwd()
   local stat = get_git_stat(location)
-  if stat == nil then
-    return ''
-  end
-  local function withPrefix(prefix, value)
+
+  local cols = 1
+  local highs = {}
+  local texts = {}
+  for _, key in ipairs(option.get_parts()) do
+    local value = stat[key]
     if not value or value == 0 then
-      return ''
+      goto continue
     end
-    return prefix .. ' ' .. value
+    local text = option.get_prefix(key)
+    if value == true then
+      if not text or text == '' then
+        goto continue
+      end
+    else
+      text = text .. value
+    end
+    local group = 'GitStat' .. string.upper(string.sub(key, 1, 1)) .. string.sub(key, 2)
+    local width = #text
+    table.insert(highs, {
+      group = group,
+      col_start = cols,
+      col_end = cols + width,
+    })
+    table.insert(texts, text)
+    cols = cols + width + 1 -- 1 = space(join)
+    ::continue::
   end
-  local output = vim.fn.trim(vim.fn.join(vim.tbl_filter(function(w)
-    return w ~= nil and w ~= ''
-  end, {
-    withPrefix("\u{E0A0} ", stat.local_branch), --  .
-    withPrefix("\u{FF55D}", stat.ahead),        -- 󿕝 .
-    withPrefix("\u{FF545}", stat.behind),       -- 󿕅 .
-    stat.sync,
-    withPrefix('\u{FFBC2}', stat.unmerged),     -- 󿯂 .
-    withPrefix("\u{FF62B}", stat.staged),       -- 󿘫 .
-    withPrefix("\u{FF914}", stat.unstaged),     -- 󿤔 .
-    withPrefix("\u{FF7D5}", stat.untracked),    -- 󿟕 .
-  })))
-  if output == '' then
-    return output
-  else
-    return ' ' .. output .. ' '
+
+  local text = vim.fn.trim(vim.fn.join(texts))
+  if text ~= '' then
+    text = ' ' .. text .. ' '
   end
-end
-
-local function get_git_stat_profile()
-  local stat = get_git_stat_string()
-
-  local width = vim.fn.strdisplaywidth(stat)
-
+  local width = vim.fn.strdisplaywidth(text)
   return {
-    stat = stat,
+    text = text,
+    highlights = highs,
     row = 0,
     col = vim.api.nvim_get_option('columns') - width,
     width = width,
@@ -111,6 +122,7 @@ local function get_git_stat_profile()
 end
 
 local function update()
+  init()
   local b = global.get_buffer()
   if not b then
     return
@@ -119,9 +131,13 @@ local function update()
   if not w then
     return
   end
+  vim.api.nvim_buf_clear_namespace(b, global.get_namespace(), 0, -1)
   local profile = get_git_stat_profile()
-  vim.api.nvim_buf_set_lines(b, 0, 1, true, {profile.stat})
-  if profile.stat == '' or profile.width == 0 then
+  vim.api.nvim_buf_set_lines(b, 0, 1, true, {profile.text})
+  for _, hi in ipairs(profile.highlights) do
+    vim.api.nvim_buf_add_highlight(b, global.get_namespace(), hi.group, 0, hi.col_start, hi.col_end)
+  end
+  if profile.text == '' or profile.width == 0 then
     vim.api.nvim_win_set_option(w, 'winblend', 100)
     vim.api.nvim_win_set_config(w, {
       relative = 'editor',
@@ -131,7 +147,7 @@ local function update()
       height = profile.height,
     })
   else
-    vim.api.nvim_win_set_option(w, 'winblend', 40)
+    vim.api.nvim_win_set_option(w, 'winblend', option.get_blend())
     vim.api.nvim_win_set_config(w, {
       relative = 'editor',
       row = profile.row,
@@ -143,6 +159,7 @@ local function update()
 end
 
 local function show()
+  init()
   local b = global.get_buffer()
   if not b then
     b = vim.api.nvim_create_buf(false, true)
@@ -167,6 +184,7 @@ local function show()
 end
 
 local function stop_sync()
+  init()
   global.put_sync(false)
 end
 
@@ -179,11 +197,13 @@ local function sync()
 end
 
 local function start_sync()
+  init()
   global.put_sync(true)
   vim.defer_fn(vim.schedule_wrap(sync), delay)
 end
 
 return {
+  init = init,
   show = show,
   hide = hide,
   update = update,
