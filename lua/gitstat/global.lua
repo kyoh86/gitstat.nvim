@@ -9,7 +9,11 @@ M.put_namespace = function(n)
 end
 
 M.get_window = function()
-  return vim.g['gitstat#_window']
+  local w = vim.g['gitstat#_window']
+  if w and vim.api.nvim_win_is_valid(w) then
+    return w
+  end
+  return nil
 end
 
 M.put_window = function(w)
