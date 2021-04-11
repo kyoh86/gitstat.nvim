@@ -10,25 +10,25 @@ end
 
 local function hide()
   init()
-  local w = global.get_window()
-  if w then
-    pcall(vim.api.nvim_win_close, w, true)
-    global.del_window()
-  end
+  global.put_state(nil)
   local b = global.get_buffer()
   if b then
     pcall(vim.api.nvim_buf_delete, b, {force = true})
     global.del_buffer()
   end
+  local w = global.get_window()
+  if w then
+    pcall(vim.api.nvim_win_close, w, true)
+    global.del_window()
+  end
 end
 
-function get_git_stat(path)
+local function get_git_stat(path)
   local res = vim.fn.system("git -C '" .. path .. "' status --porcelain --branch --ahead-behind --untracked-files --renames")
   local info = { ahead = 0, behind = 0, sync = false, unmerged = 0, untracked = 0, staged = 0, unstaged = 0 }
   if string.sub(res, 1, 7) == 'fatal: ' then
     return info
   end
-  local file
   for _, file in next, vim.fn.split(res, "\n") do
     local staged = string.sub(file, 1, 1)
     local unstaged = string.sub(file, 2, 2)
@@ -44,8 +44,6 @@ function get_git_stat(path)
         info.remote = words[3]
         if #words > 3 then
           local key = ''
-          local i = ''
-          local r = ''
           for i, r in ipairs(words) do
             if i > 3 then
               if key ~= '' then
@@ -160,9 +158,11 @@ end
 
 local function show()
   init()
+  global.put_state('shown')
   local b = global.get_buffer()
   if not b then
     b = vim.api.nvim_create_buf(false, true)
+    vim.cmd("autocmd WinClosed <buffer=" .. b .. "> lua require'gitstat'.revive()")
     global.put_buffer(b)
   end
   local w = global.get_window()
@@ -181,6 +181,17 @@ local function show()
   end
   vim.api.nvim_win_set_buf(w, b)
   update()
+end
+
+local function revive()
+  if vim.v.exiting ~= nil then
+    return
+  end
+  local state = global.get_state()
+  if state == 'shown' then
+    hide()
+    vim.defer_fn(vim.schedule_wrap(show), 10)
+  end
 end
 
 local function stop_sync()
@@ -205,6 +216,7 @@ end
 return {
   init = init,
   show = show,
+  revive = revive,
   hide = hide,
   update = update,
   start_sync = start_sync,

@@ -8,6 +8,14 @@ M.put_namespace = function(n)
   vim.g['gitstat#_namespace'] = n
 end
 
+M.get_state = function()
+  return vim.g['gitstat#_state']
+end
+
+M.put_state = function(s)
+  vim.g['gitstat#_state'] = s
+end
+
 M.get_window = function()
   local w = vim.g['gitstat#_window']
   if w and vim.api.nvim_win_is_valid(w) then
@@ -25,7 +33,11 @@ M.del_window = function()
 end
 
 M.get_buffer = function()
-  return vim.g['gitstat#_buffer']
+  local b = vim.g['gitstat#_buffer']
+  if b and vim.api.nvim_buf_is_loaded(b) then
+    return b
+  end
+  return nil
 end
 
 M.put_buffer = function(w)
