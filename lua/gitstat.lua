@@ -72,41 +72,54 @@ local function get_git_stat(path)
   return info
 end
 
+local function put_text(highs, texts, group, col, text)
+  local width = #text
+  table.insert(highs, {
+    group = group,
+    col_start = col,
+    col_end = col + width,
+  })
+  table.insert(texts, text)
+  return col + width
+end
+
+local function put_spacer(highs, texts, col)
+  return put_text(highs, texts, 'GitStatWindow', col, ' ')
+end
+
+local function put_part(highs, texts, col, key, value)
+  if not value or value == 0 then
+    return col
+  end
+  local text = option.get_prefix(key)
+  if value == true then
+    if not text or text == '' then
+      return col
+    end
+  else
+    text = text .. vim.fn.trim(value)
+  end
+  local group = 'GitStat' .. string.upper(string.sub(key, 1, 1)) .. string.sub(key, 2)
+  col = put_text(highs, texts, group, col, text)
+  col = put_spacer(highs, texts, col)
+  return col
+end
+
 local function get_git_stat_profile()
   local location = vim.fn.getcwd()
   local stat = get_git_stat(location)
 
-  local cols = 1
   local highs = {}
   local texts = {}
+  local col = put_spacer(highs, texts, 0)
   for _, key in ipairs(option.get_parts()) do
     local value = stat[key]
-    if not value or value == 0 then
-      goto continue
-    end
-    local text = option.get_prefix(key)
-    if value == true then
-      if not text or text == '' then
-        goto continue
-      end
-    else
-      text = text .. value
-    end
-    local group = 'GitStat' .. string.upper(string.sub(key, 1, 1)) .. string.sub(key, 2)
-    local width = #text
-    table.insert(highs, {
-      group = group,
-      col_start = cols,
-      col_end = cols + width,
-    })
-    table.insert(texts, text)
-    cols = cols + width + 1 -- 1 = space(join)
-    ::continue::
+    col = put_part(highs, texts, col, key, value)
   end
 
-  local text = vim.fn.trim(vim.fn.join(texts))
-  if text ~= '' then
-    text = ' ' .. text .. ' '
+  local text = vim.fn.join(texts, '')
+  if vim.fn.trim(text) == '' then
+    text = ''
   end
   local width = vim.fn.strdisplaywidth(text)
   return {
@@ -176,7 +189,7 @@ local function show()
       focusable = false,
       style = 'minimal',
     })
-    vim.api.nvim_win_set_option(w, 'winhighlight', 'Normal:GitStatWindow,NormalNC:GitStatWindow')
+    -- vim.api.nvim_win_set_option(w, 'winhighlight', 'Normal:GitStatWindow,NormalNC:GitStatWindow')
     global.put_window(w)
   end
   vim.api.nvim_win_set_buf(w, b)
