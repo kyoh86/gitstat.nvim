@@ -17,9 +17,15 @@ command! GitStatUpdate lua require('gitstat').update()
 
 augroup GitStat
   autocmd!
-  autocmd VimResized * lua require('gitstat').update()
-  autocmd DirChanged * lua require('gitstat').update()
+  autocmd ShellCmdPost * lua require('gitstat').update()
+  autocmd VimResized   * lua require('gitstat').update()
+  autocmd DirChanged   * lua require('gitstat').update()
   autocmd BufWritePost * lua require('gitstat').update()
-  autocmd TermEnter * lua require('gitstat').start_sync()
-  autocmd TermLeave * lua require('gitstat').stop_sync()
+  autocmd CmdlineLeave * lua require('gitstat').update()
+  autocmd CursorHold   * lua require('gitstat').update()
+  autocmd CursorHoldI  * lua require('gitstat').update()
+  autocmd TermResponse * lua require('gitstat').update()
+  autocmd TermEnter    * lua require('gitstat').update()
+  autocmd TermEnter    * lua require('gitstat').start_sync()
+  autocmd TermLeave    * lua require('gitstat').stop_sync()
 augroup END
