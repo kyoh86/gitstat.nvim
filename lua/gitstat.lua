@@ -10,6 +10,7 @@ end
 
 local function hide()
   init()
+  print("hide gitstat")
   global.put_state(nil)
   local b = global.get_buffer()
   if b then
@@ -138,14 +139,37 @@ end
 
 local function update()
   init()
+
+  if global.get_state() ~= "shown" then
+    return
+  end
+
   local b = global.get_buffer()
   if not b then
-    return
+    b = vim.api.nvim_create_buf(false, true)
+    vim.cmd("autocmd WinClosed <buffer=" .. b .. "> lua require'gitstat'.revive()")
+    global.put_buffer(b)
   end
   local w = global.get_window()
   if not w then
-    return
+    w =
+      vim.api.nvim_open_win(
+      b,
+      false,
+      {
+        relative = "editor",
+        row = 0,
+        col = 1,
+        width = 1,
+        height = 1,
+        focusable = false,
+        style = "minimal"
+      }
+    )
+    -- vim.api.nvim_win_set_option(w, 'winhighlight', 'Normal:GitStatWindow,NormalNC:GitStatWindow')
+    global.put_window(w)
   end
+  vim.api.nvim_win_set_buf(w, b)
   vim.api.nvim_buf_clear_namespace(b, global.get_namespace(), 0, -1)
   local profile = get_git_stat_profile()
   vim.api.nvim_buf_set_lines(b, 0, 1, true, {profile.text})
@@ -182,32 +206,6 @@ end
 local function show()
   init()
   global.put_state("shown")
-  local b = global.get_buffer()
-  if not b then
-    b = vim.api.nvim_create_buf(false, true)
-    vim.cmd("autocmd WinClosed <buffer=" .. b .. "> lua require'gitstat'.revive()")
-    global.put_buffer(b)
-  end
-  local w = global.get_window()
-  if not w then
-    w =
-      vim.api.nvim_open_win(
-      b,
-      false,
-      {
-        relative = "editor",
-        row = 0,
-        col = 1,
-        width = 1,
-        height = 1,
-        focusable = false,
-        style = "minimal"
-      }
-    )
-    -- vim.api.nvim_win_set_option(w, 'winhighlight', 'Normal:GitStatWindow,NormalNC:GitStatWindow')
-    global.put_window(w)
-  end
-  vim.api.nvim_win_set_buf(w, b)
   update()
 end
 
