@@ -26,6 +26,7 @@ augroup GitStat
   autocmd CursorHoldI  * lua require('gitstat').update()
   autocmd TermResponse * lua require('gitstat').update()
   autocmd TermEnter    * lua require('gitstat').update()
+  autocmd WinEnter     * lua require('gitstat').check_focus()
   autocmd TermEnter    * lua require('gitstat').start_sync()
   autocmd TermLeave    * lua require('gitstat').stop_sync()
 augroup END

@@ -239,6 +239,20 @@ local function start_sync()
   vim.defer_fn(vim.schedule_wrap(sync), delay)
 end
 
+local function check_focus()
+  if vim.api.nvim_get_current_win() ~= global.get_window() then
+    return
+  end
+
+  for _, w in next, vim.api.nvim_list_wins() do
+    if w ~= global.get_window() then
+      vim.api.nvim_set_current_win(w)
+      print("move")
+      return
+    end
+  end
+end
+
 return {
   init = init,
   show = show,
@@ -246,5 +260,6 @@ return {
   hide = hide,
   update = update,
   start_sync = start_sync,
-  stop_sync = stop_sync
+  stop_sync = stop_sync,
+  check_focus = check_focus
 }
