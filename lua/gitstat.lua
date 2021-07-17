@@ -247,7 +247,6 @@ local function check_focus()
   for _, w in next, vim.api.nvim_list_wins() do
     if w ~= global.get_window() then
       vim.api.nvim_set_current_win(w)
-      print("move")
       return
     end
   end
