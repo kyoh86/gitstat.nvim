@@ -1,26 +1,25 @@
-local global = require("gitstat.global")
-local option = require("gitstat.option")
+local G = {
+    state = nil,
+    window = nil,
+    buffer = nil,
+    sync = nil,
+    namespace = nil,
+}
 
-local function init()
-    local ns = global.get_namespace()
-    if ns == nil then
-        global.put_namespace(vim.api.nvim_create_namespace("gitstat"))
-    end
-end
+local O = {}
 
-local function hide()
-    init()
+local M = {}
+
+function M.hide()
     print("hide gitstat")
-    global.put_state(nil)
-    local b = global.get_buffer()
-    if b then
-        pcall(vim.api.nvim_buf_delete, b, { force = true })
-        global.del_buffer()
+    state = nil
+    if G.buffer then
+        pcall(vim.api.nvim_buf_delete, G.buffer, { force = true })
+        G.buffer = nil
     end
-    local w = global.get_window()
-    if w then
-        pcall(vim.api.nvim_win_close, w, true)
-        global.del_window()
+    if G.window then
+        pcall(vim.api.nvim_win_close, G.window, true)
+        G.window = nil
     end
 end
 
@@ -28,7 +27,7 @@ local function get_git_stat(path)
     local res = vim.fn.system(
         "git -C '" .. path .. "' status --porcelain --branch --ahead-behind --untracked-files --renames"
     )
-    local info = { ahead = 0, behind = 0, sync = false, unmerged = 0, untracked = 0, staged = 0, unstaged = 0 }
+    local info = { ahead = 0, behind = 0, recruit = false, unmerged = 0, untracked = 0, staged = 0, unstaged = 0 }
     if string.sub(res, 1, 7) == "fatal: " then
         return info
     end
@@ -41,7 +40,7 @@ local function get_git_stat(path)
             local words = vim.fn.split(file, "\\.\\.\\.\\|[ \\[\\],]")
             if #words == 2 then
                 info.branch = words[2] .. "?"
-                info.sync = true -- "\u{F12A}"
+                info.recruit = true
             else
                 info.branch = words[2]
                 info.remote = words[3]
@@ -75,59 +74,35 @@ local function get_git_stat(path)
     return info
 end
 
-local function put_text(highs, texts, group, col, text)
-    local width = #text
-    table.insert(highs, {
-        group = group,
-        col_start = col,
-        col_end = col + width,
-    })
-    table.insert(texts, text)
-    return col + width
-end
-
-local function put_spacer(highs, texts, col)
-    return put_text(highs, texts, "GitStatWindow", col, " ")
-end
-
-local function put_part(highs, texts, col, key, value)
-    if not value or value == 0 then
-        return col
-    end
-    local text = option.get_prefix(key)
-    if value == true then
-        if not text or text == "" then
-            return col
-        end
-    else
-        text = text .. vim.fn.trim(value)
-    end
-    local group = "GitStat" .. string.upper(string.sub(key, 1, 1)) .. string.sub(key, 2)
-    col = put_text(highs, texts, group, col, text)
-    col = put_spacer(highs, texts, col)
-    return col
-end
-
 local function get_git_stat_profile()
     local location = vim.fn.getcwd()
     local stat = get_git_stat(location)
 
-    local highs = {}
-    local texts = {}
-    local col = put_spacer(highs, texts, 0)
-    for _, key in ipairs(option.get_parts()) do
-        local value = stat[key]
-        col = put_part(highs, texts, col, key, value)
+    local hl = require("gitstat.hltext"):new()
+    for _, part in ipairs(O.parts) do
+        local value = stat[part]
+        local style = O.style[part]
+        local t = type(value)
+        if t == "nil" then
+            -- noop
+        elseif t == "boolean" then
+            if value then
+                hl:add(part, O.prefix[part], style)
+            end
+        elseif t == "string" then
+            hl:add(part, O.prefix[part] .. value, style)
+        elseif t == "number" then
+            if value ~= 0 then
+                hl:add(part, string.format("%s%d", O.prefix[part], value), style)
+            end
+        end
     end
 
-    local text = vim.fn.join(texts, "")
-    if vim.fn.trim(text) == "" then
-        text = ""
-    end
-    local width = vim.fn.strdisplaywidth(text)
+    local width = vim.fn.strdisplaywidth(hl.text)
     return {
-        text = text,
-        highlights = highs,
+        text = hl.text,
+        groups = hl.groups,
+        columns = hl.columns,
         row = 0,
         col = vim.api.nvim_get_option("columns") - width,
         width = width,
@@ -135,21 +110,24 @@ local function get_git_stat_profile()
     }
 end
 
-local function update()
-    init()
-
-    if global.get_state() ~= "shown" then
+function M.update()
+    if G.state ~= "shown" then
         return
     end
 
-    local b = global.get_buffer()
+    local b = G.buffer
     if not b then
         b = vim.api.nvim_create_buf(false, true)
-        vim.cmd("autocmd WinClosed <buffer=" .. b .. "> lua require'gitstat'.revive()")
-        global.put_buffer(b)
+        local group = vim.api.nvim_create_augroup("gitstat-buffer", { clear = false })
+        vim.api.nvim_create_autocmd("WinClosed", {
+            group = group,
+            buffer = b,
+            callback = M.revive,
+        })
+        G.buffer = b
         vim.bo[b].filetype = "gitstat"
     end
-    local w = global.get_window()
+    local w = G.window
     if not w then
         w = vim.api.nvim_open_win(b, false, {
             relative = "editor",
@@ -160,16 +138,21 @@ local function update()
             focusable = false,
             style = "minimal",
         })
-        -- vim.api.nvim_win_set_option(w, 'winhighlight', 'Normal:GitStatWindow,NormalNC:GitStatWindow')
-        global.put_window(w)
+        G.window = w
     end
     vim.api.nvim_win_set_buf(w, b)
-    vim.api.nvim_buf_clear_namespace(b, global.get_namespace(), 0, -1)
+
+    -- vim.api.nvim_buf_clear_namespace(b, G.namespace, 0, -1)
+
     local profile = get_git_stat_profile()
     vim.api.nvim_buf_set_lines(b, 0, 1, true, { profile.text })
-    for _, hi in ipairs(profile.highlights) do
-        vim.api.nvim_buf_add_highlight(b, global.get_namespace(), hi.group, 0, hi.col_start, hi.col_end)
+    for _, hi in ipairs(profile.columns) do
+        vim.api.nvim_buf_add_highlight(b, G.namespace, hi.group, 0, hi.col_start, hi.col_end)
     end
+    for _, hi in pairs(profile.groups) do
+        vim.api.nvim_set_hl(0, hi.group, hi.val)
+    end
+
     if profile.text == "" or profile.width == 0 then
         vim.api.nvim_win_set_option(w, "winblend", 100)
         vim.api.nvim_win_set_config(w, {
@@ -180,7 +163,7 @@ local function update()
             height = profile.height,
         })
     else
-        vim.api.nvim_win_set_option(w, "winblend", option.get_blend())
+        vim.api.nvim_win_set_option(w, "winblend", O.blend)
         vim.api.nvim_win_set_config(w, {
             relative = "editor",
             row = profile.row,
@@ -191,62 +174,125 @@ local function update()
     end
 end
 
-local function show()
-    init()
-    global.put_state("shown")
-    update()
+function M.show()
+    G.state = "shown"
+    M.update()
 end
 
-local function revive()
+function M.revive()
     if vim.v.exiting ~= nil then
         return
     end
-    local state = global.get_state()
+    local state = G.state
     if state == "shown" then
-        hide()
-        vim.defer_fn(vim.schedule_wrap(show), 10)
+        M.hide()
+        vim.defer_fn(vim.schedule_wrap(M.show), 10)
     end
 end
 
 local function stop_sync()
-    init()
-    global.put_sync(false)
+    G.sync = false
 end
 
 local delay = 3000
 local function sync()
-    update()
-    if global.get_sync() then
+    M.update()
+    if G.sync then
         vim.defer_fn(vim.schedule_wrap(sync), delay)
     end
 end
 
 local function start_sync()
-    init()
-    global.put_sync(true)
+    G.sync = true
     vim.defer_fn(vim.schedule_wrap(sync), delay)
 end
 
 local function check_focus()
-    if vim.api.nvim_get_current_win() ~= global.get_window() then
+    if vim.api.nvim_get_current_win() ~= G.window then
         return
     end
 
     for _, w in next, vim.api.nvim_list_wins() do
-        if w ~= global.get_window() then
+        if w ~= G.window then
             vim.api.nvim_set_current_win(w)
             return
         end
     end
 end
 
+local default_option = {
+    parts = {
+        "branch",
+        "remote",
+        "ahead",
+        "behind",
+        "recruit",
+        "unmerged",
+        "staged",
+        "unstaged",
+        "untracked",
+    },
+
+    prefix = {
+        branch = "\u{F418} ", --  .
+        remote = "\u{F427} ", --  .
+        ahead = "\u{F55D} ", --  .
+        behind = "\u{F545} ", --  .
+        recruit = "\u{F6C8} ", --  .
+        unmerged = "\u{FBC2} ", -- ﯂ .
+        staged = "\u{F00C} ", --  .
+        unstaged = "\u{F067} ", --  .
+        untracked = "\u{F12A} ", --  .
+    },
+
+    style = {
+        branch = { bg = "Green", fg = "Black" },
+        remote = { bg = "Green", fg = "Black" },
+        ahead = { bg = "Yellow", fg = "Black" },
+        behind = { bg = "Yellow", fg = "Black" },
+        recruit = { bg = "Yellow", fg = "Black" },
+        unmerged = { bg = "Yellow", fg = "Black" },
+        staged = { bg = "Yellow", fg = "Black" },
+        unstaged = { bg = "Yellow", fg = "Black" },
+        untracked = { bg = "Yellow", fg = "Black" },
+    },
+
+    blend = 20,
+    commands = {
+        GitStatClose = M.hide,
+        GitStatShow = M.show,
+        GitStatUpdate = M.update,
+    },
+}
+
+function M.setup(option)
+    G.namespace = vim.api.nvim_create_namespace("gitstat")
+    O = vim.tbl_deep_extend("force", default_option, option or {})
+    if O.commands then
+        for cmd, value in pairs(O.commands) do
+            vim.api.nvim_add_user_command(cmd, value, { force = true })
+        end
+    end
+
+    local group = vim.api.nvim_create_augroup("gitstat-global", { clear = true })
+    vim.api.nvim_create_autocmd("ShellCmdPost", { group = group, pattern = "*", callback = M.update })
+    vim.api.nvim_create_autocmd("VimResized", { group = group, pattern = "*", callback = M.update })
+    vim.api.nvim_create_autocmd("DirChanged", { group = group, pattern = "*", callback = M.update })
+    vim.api.nvim_create_autocmd("BufWritePost", { group = group, pattern = "*", callback = M.update })
+    vim.api.nvim_create_autocmd("CmdlineLeave", { group = group, pattern = "*", callback = M.update })
+    vim.api.nvim_create_autocmd("CursorHold", { group = group, pattern = "*", callback = M.update })
+    vim.api.nvim_create_autocmd("CursorHoldI", { group = group, pattern = "*", callback = M.update })
+    vim.api.nvim_create_autocmd("TermResponse", { group = group, pattern = "*", callback = M.update })
+    vim.api.nvim_create_autocmd("TermEnter", { group = group, pattern = "*", callback = M.update })
+    vim.api.nvim_create_autocmd("WinEnter", { group = group, pattern = "*", callback = check_focus })
+    vim.api.nvim_create_autocmd("TermEnter", { group = group, pattern = "*", callback = start_sync })
+    vim.api.nvim_create_autocmd("TermLeave", { group = group, pattern = "*", callback = stop_sync })
+end
+
 return {
-    init = init,
-    show = show,
-    revive = revive,
-    hide = hide,
-    update = update,
-    start_sync = start_sync,
-    stop_sync = stop_sync,
-    check_focus = check_focus,
+    setup = M.setup,
+
+    hide = M.hide,
+    show = M.show,
+    update = M.update,
 }
