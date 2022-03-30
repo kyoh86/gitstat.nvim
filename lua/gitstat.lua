@@ -141,8 +141,7 @@ function M.update()
         G.window = w
     end
     vim.api.nvim_win_set_buf(w, b)
-
-    -- vim.api.nvim_buf_clear_namespace(b, G.namespace, 0, -1)
+    vim.api.nvim_buf_clear_namespace(b, G.namespace, 0, -1)
 
     local profile = get_git_stat_profile()
     vim.api.nvim_buf_set_lines(b, 0, 1, true, { profile.text })
