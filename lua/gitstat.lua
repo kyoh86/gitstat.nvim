@@ -13,11 +13,11 @@ local M = {}
 function M.hide()
     print("hide gitstat")
     state = nil
-    if G.buffer then
+    if G.buffer and vim.api.nvim_buf_is_loaded(G.buffer) then
         pcall(vim.api.nvim_buf_delete, G.buffer, { force = true })
         G.buffer = nil
     end
-    if G.window then
+    if G.window and vim.api.nvim_win_is_valid(G.window) then
         pcall(vim.api.nvim_win_close, G.window, true)
         G.window = nil
     end
@@ -116,7 +116,7 @@ function M.update()
     end
 
     local b = G.buffer
-    if not b then
+    if not b or not vim.api.nvim_buf_is_loaded(b) then
         b = vim.api.nvim_create_buf(false, true)
         local group = vim.api.nvim_create_augroup("gitstat-buffer", { clear = false })
         vim.api.nvim_create_autocmd("WinClosed", {
@@ -128,7 +128,7 @@ function M.update()
         vim.bo[b].filetype = "gitstat"
     end
     local w = G.window
-    if not w then
+    if not w or not vim.api.nvim_win_is_valid(w) then
         w = vim.api.nvim_open_win(b, false, {
             relative = "editor",
             row = 0,
@@ -207,7 +207,7 @@ local function start_sync()
 end
 
 local function check_focus()
-    if vim.api.nvim_get_current_win() ~= G.window then
+    if vim.api.nvim_get_current_win() ~= G.window or not vim.api.nvim_win_is_valid(G.window) then
         return
     end
 
