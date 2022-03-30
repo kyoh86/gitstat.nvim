@@ -1,16 +1,16 @@
-HLText = {
-    _index = 0,
-    _pos = 0,
-
-    text = "",
-    columns = {},
-    groups = {},
-}
+HLText = {}
 
 function HLText:new(o)
-    o = o or {}
-    setmetatable(o, self)
-    self.__index = self
+    o = o
+        or {
+            _index = 0,
+            _pos = 0,
+
+            text = "",
+            columns = {},
+            groups = {},
+        }
+    setmetatable(o, { __index = HLText })
     return o
 end
 
