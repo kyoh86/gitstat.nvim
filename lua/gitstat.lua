@@ -149,7 +149,7 @@ function M.update()
         vim.api.nvim_buf_add_highlight(b, G.namespace, hi.group, 0, hi.col_start, hi.col_end)
     end
     for _, hi in pairs(profile.groups) do
-        vim.api.nvim_set_hl(0, hi.group, hi.val)
+        vim.api.nvim_set_hl(G.namespace, hi.group, hi.val)
     end
 
     if profile.text == "" or profile.width == 0 then
