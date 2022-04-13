@@ -269,7 +269,7 @@ function M.setup(option)
     O = vim.tbl_deep_extend("force", default_option, option or {})
     if O.commands then
         for cmd, value in pairs(O.commands) do
-            vim.api.nvim_add_user_command(cmd, value, { force = true })
+            vim.api.nvim_create_user_command(cmd, value, { force = true })
         end
     end
 
