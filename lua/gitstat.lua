@@ -265,6 +265,7 @@ local default_option = {
 }
 
 function M.setup(option)
+    vim.api.nvim_echo({ { [[WARN: 'kyoh86/gitstat.nvim' is deprecated]], 'ErrorMsg' } }, true, {})
     G.namespace = vim.api.nvim_create_namespace("gitstat")
     O = vim.tbl_deep_extend("force", default_option, option or {})
     if O.commands then
